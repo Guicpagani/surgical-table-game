@@ -33,7 +33,7 @@ type Zone = {
   h: number;
 };
 
-/* ===== Tipos do relatório (para remover 'any') ===== */
+/* ===== Tipos do relatório ===== */
 type ItemReport = {
   item: string;
   finalZone: string | null;
@@ -58,9 +58,8 @@ const PADDING = 16;
 
 /* ===== Grid/colocação ===== */
 const PLACED_SIZE = 64;
-const GRID_COLS = 4; // 4 por linha (linhas ilimitadas)
+const GRID_COLS = 4;
 const GRID_GAP = 8;
-// Tamanho do preview enquanto arrasta (maior para facilitar visualização)
 const DRAG_PREVIEW_SIZE = 300;
 
 /* ===== Ícones fallback ===== */
@@ -155,7 +154,7 @@ const DISPLAY_MS = 3800;
 
 /* ===== Zonas ===== */
 const GRID_W = TABLE_W - PADDING * 2;
-const GRID_H = TABLE_H - PADDING * 3 - 8;
+the GRID_H = TABLE_H - PADDING * 3 - 8;
 const CELL_W = (GRID_W - PADDING * 2) / 3;
 const CELL_H = (GRID_H - PADDING) / 2;
 
@@ -271,7 +270,6 @@ function PreviewOverlay({ item, x, y }: { item: Instrument | null; x: number; y:
         {item.imageBase ? (
           <>
             <InstrumentImage base={item.imageBase} alt={item.label} className="object-contain" />
-            {/* reserva de espaço explícita para imagem */}
             <div style={{ width: size, height: size }} className="absolute opacity-0" />
           </>
         ) : (
@@ -350,7 +348,21 @@ const TUTORIAL_STEPS: Array<{ target: "list" | "zones" | "check"; text: string; 
   { target: "check", text: "Após finalizar toda a montagem, clique em “Checar” para avaliar seu desempenho.", offsetX: 140, offsetY: 0 },
 ];
 
-function TutorialOverlay({ stepIndex, onNext, onSkip, refs }: { stepIndex: number; onNext: () => void; onSkip: () => void; refs: { listRef: React.RefObject<HTMLDivElement>; tableRef: React.RefObject<HTMLDivElement>; checkBtnRef: React.RefObject<HTMLButtonElement> } }) {
+function TutorialOverlay({
+  stepIndex,
+  onNext,
+  onSkip,
+  refs,
+}: {
+  stepIndex: number;
+  onNext: () => void;
+  onSkip: () => void;
+  refs: {
+    listRef: React.RefObject<HTMLDivElement | null>;
+    tableRef: React.RefObject<HTMLDivElement | null>;
+    checkBtnRef: React.RefObject<HTMLButtonElement | null>;
+  };
+}) {
   const step = TUTORIAL_STEPS[stepIndex];
   const [pos, setPos] = useState<{ x: number; y: number; dir: "right" | "left" | "top" | "bottom" }>({ x: 40, y: 40, dir: "right" });
 
@@ -358,9 +370,9 @@ function TutorialOverlay({ stepIndex, onNext, onSkip, refs }: { stepIndex: numbe
     const getRect = (el: HTMLElement | null) => (el ? el.getBoundingClientRect() : null);
     const calc = () => {
       let r: DOMRect | null = null;
-      if (step.target === "list") r = getRect(refs.listRef.current!);
-      if (step.target === "zones") r = getRect(refs.tableRef.current!);
-      if (step.target === "check") r = getRect(refs.checkBtnRef.current!);
+      if (step.target === "list") r = getRect(refs.listRef.current);
+      if (step.target === "zones") r = getRect(refs.tableRef.current);
+      if (step.target === "check") r = getRect(refs.checkBtnRef.current);
       const margin = 12;
       const offX = step.offsetX ?? 0;
       const offY = step.offsetY ?? 0;
@@ -433,7 +445,7 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
 
   const placedSet = useMemo(() => new Set(Object.values(placements).flat()), [placements]);
 
-  /* ====== Helpers de zona/posição ====== */
+  /* ===== Helpers ===== */
   const findZoneByItem = (itemId: string) => Object.keys(placements).find((zid) => placements[zid].includes(itemId)) || null;
   const getClientPoint = (clientX: number, clientY: number) => {
     const rect = tableRef.current?.getBoundingClientRect();
@@ -459,7 +471,7 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
     setPreviewPos({ x: clientX - rect.left, y: clientY - rect.top });
   };
 
-  /* ====== Drag genérico (lista OU já colocado) ====== */
+  /* ===== Drag genérico ===== */
   const startDrag = (item: Instrument, clientX: number, clientY: number, source: "list" | "placed") => {
     if (showTutorial) return;
     setPreviewItem(item);
@@ -471,7 +483,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
     const onUp = (ev: PointerEvent) => {
       const targetZone = getZoneAtClient(ev.clientX, ev.clientY);
       if (!targetZone) {
-        // Soltou fora da mesa → se veio de colocado, remove; se veio da lista e ainda não existia, nada.
         if (source === "placed") {
           setPlacements((prev) => {
             const copy = { ...prev };
@@ -484,14 +495,11 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
         if (source === "list") {
           const alreadyInZone = findZoneByItem(item.id);
           if (alreadyInZone) {
-            // mover existente (unitário)
             moveItemToZone(item, targetZone, ev.clientX, ev.clientY);
           } else {
-            // primeira colocação
             placeItemInZone(item, targetZone);
           }
         } else {
-          // veio de colocado → mover (unitário) ou reordenar
           moveItemToZone(item, targetZone, ev.clientX, ev.clientY);
         }
       }
@@ -526,7 +534,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
       if (!fromZoneId) return next;
 
       if (fromZoneId === zone.id) {
-        // Reordenar no mesmo quadrante
         const targetIdx = Math.min(getGridIndexInZone(zone, clientX, clientY), next[zone.id].length - 1);
         const arr = [...next[zone.id]];
         const currentIdx = arr.indexOf(item.id);
@@ -535,7 +542,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
           next[zone.id] = arr;
         }
       } else {
-        // Mover unitário
         next[fromZoneId] = next[fromZoneId].filter((id) => id !== item.id);
         if (!next[zone.id].includes(item.id)) next[zone.id].push(item.id);
       }
@@ -556,7 +562,7 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
     });
   };
 
-  /* ====== Handlers de UI ====== */
+  /* ===== UI ===== */
   const handleStartDragFromList = (item: Instrument, e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     startDrag(item, e.clientX, e.clientY, "list");
@@ -749,7 +755,6 @@ function PlacedMini({ item, gridPos, zone, onStartDrag }: { item: Instrument; gr
     </div>
   );
 }
-
 
 
 
