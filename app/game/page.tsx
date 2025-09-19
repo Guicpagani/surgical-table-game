@@ -1,21 +1,28 @@
 "use client";
 
+import React, { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import SurgicalTableGame from "@/components/SurgicalTableGame";
 
-export default function GamePage() {
-  const sp = useSearchParams();
-  const evaluator = sp.get("e") === "rafael" ? "rafael" : "otto";
+// Opcional: evita tentativa de pré-render estático dessa página
+export const dynamic = "force-dynamic";
 
-  // Tenta .png e, se não existir, o componente troca para .jpg via onError
-  const imagePng = `/evaluators/${evaluator}.png`;
+export default function GamePage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-600">Carregando…</div>}>
+      <GamePageInner />
+    </Suspense>
+  );
+}
+
+function GamePageInner() {
+  const params = useSearchParams();
+  const evalParam = (params.get("eval") || "otto") as "otto" | "rafael";
 
   return (
     <div className="p-4">
-      <SurgicalTableGame
-        evaluator={evaluator}
-        evaluatorImageSrc={imagePng}
-      />
+      <SurgicalTableGame evaluator={evalParam} />
     </div>
   );
 }
+
