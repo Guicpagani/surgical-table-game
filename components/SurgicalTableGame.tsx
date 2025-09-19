@@ -33,6 +33,24 @@ type Zone = {
   h: number;
 };
 
+/* ===== Tipos do relatório (para remover 'any') ===== */
+type ItemReport = {
+  item: string;
+  finalZone: string | null;
+  correct: boolean;
+  corrected: boolean;
+  wrongZonesTried: string[];
+};
+
+type GameReport = {
+  finishedAtISO: string;
+  timeSec: number;
+  totalItems: number;
+  correctItems: number;
+  correctedItems: number;
+  perItem: ItemReport[];
+};
+
 /* ===== Layout ===== */
 const TABLE_W = 1000;
 const TABLE_H = 680;
@@ -245,14 +263,20 @@ function InstrumentImage({ base, alt, className }: { base: string; alt: string; 
 
 function PreviewOverlay({ item, x, y }: { item: Instrument | null; x: number; y: number }) {
   if (!item) return null;
+  const size = DRAG_PREVIEW_SIZE;
+  const iconSize = Math.round(size * 0.6);
   return (
     <div className="absolute pointer-events-none z-[220]" style={{ left: x + 16, top: y + 16 }}>
-      <div className="rounded-xl border bg-white shadow-xl p-3 flex items-center gap-3">
+      <div className="rounded-xl border bg-white shadow-2xl p-3 flex items-center gap-3 scale-105">
         {item.imageBase ? (
-          <InstrumentImage base={item.imageBase} alt={item.label} className="w-[300px] h-[300px] object-contain" />
+          <>
+            <InstrumentImage base={item.imageBase} alt={item.label} className="object-contain" />
+            {/* reserva de espaço explícita para imagem */}
+            <div style={{ width: size, height: size }} className="absolute opacity-0" />
+          </>
         ) : (
-          <div className="w-[300px] h-[300px] flex items-center justify-center text-slate-700">
-            <item.renderIcon width={180} height={180} />
+          <div className="flex items-center justify-center text-slate-700" style={{ width: size, height: size }}>
+            <item.renderIcon width={iconSize} height={iconSize} />
           </div>
         )}
         <div className="text-sm font-semibold max-w-[220px]">{item.label}</div>
@@ -281,7 +305,7 @@ function EvaluatorPanel({ evaluator, imageSrc }: { evaluator: Evaluator; imageSr
     setIdx(0);
     const t = setInterval(() => setIdx((i) => (i + 1) % messages.length), DISPLAY_MS);
     return () => clearInterval(t);
-  }, [evaluator]);
+  }, [evaluator, messages.length]);
 
   const png = imageSrc || `/evaluators/${evaluator}.png`;
   const jpg = png.replace(".png", ".jpg");
@@ -296,7 +320,7 @@ function EvaluatorPanel({ evaluator, imageSrc }: { evaluator: Evaluator; imageSr
           alt={`${evaluator}`}
           className="w-full h-full object-cover"
           onError={(e) => {
-            const img = e.currentTarget as any;
+            const img = e.currentTarget as HTMLImageElement;
             if (!img.dataset.fallback) {
               img.dataset.fallback = "1";
               img.src = jpg;
@@ -400,8 +424,7 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
   const [checked, setChecked] = useState(false);
   const [zoneErrors, setZoneErrors] = useState<Record<string, boolean>>({});
   const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [finishedAt, setFinishedAt] = useState<number | null>(null);
-  const [report, setReport] = useState<any | null>(null);
+  const [report, setReport] = useState<GameReport | null>(null);
   const [everWrong, setEverWrong] = useState<Record<string, boolean>>({});
   const [wrongZonesByItem, setWrongZonesByItem] = useState<Record<string, Set<string>>>({});
   const [instrumentList, setInstrumentList] = useState<Instrument[]>(() => INSTRUMENTS);
@@ -561,14 +584,15 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
     const allPlaced = INSTRUMENTS.every((it) => !!findZoneByItem(it.id));
     if (!hasWrongNow && allPlaced) {
       const end = Date.now();
-      setFinishedAt(end);
       const seconds = startedAt != null ? Math.max(0, Math.round((end - startedAt) / 1000)) : 0;
-      const perItem = INSTRUMENTS.map((it) => {
+      const perItem: ItemReport[] = INSTRUMENTS.map((it) => {
         const zid = findZoneByItem(it.id);
         const zone = ZONES.find((z) => z.id === (zid || "")) || null;
         const correct = !!zone && zone.category === it.category;
         const corrected = !!everWrong[it.id] && correct;
-        const wrongTried = wrongZonesByItem[it.id] ? Array.from(wrongZonesByItem[it.id]).map((zid) => ZONES.find((z) => z.id === zid)?.label || zid) : [];
+        const wrongTried = wrongZonesByItem[it.id]
+          ? Array.from(wrongZonesByItem[it.id]).map((zid2) => ZONES.find((z) => z.id === zid2)?.label || zid2)
+          : [];
         return { item: it.label, finalZone: zone ? zone.label : null, correct, corrected, wrongZonesTried: wrongTried };
       });
       const total = INSTRUMENTS.length;
@@ -577,7 +601,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
       setReport({ finishedAtISO: new Date(end).toISOString(), timeSec: seconds, totalItems: total, correctItems: correctCount, correctedItems: correctedCount, perItem });
     } else {
       setReport(null);
-      setFinishedAt(null);
     }
   };
 
@@ -586,7 +609,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
     setChecked(false);
     setZoneErrors({});
     setStartedAt(null);
-    setFinishedAt(null);
     setReport(null);
     setEverWrong({});
     setWrongZonesByItem({});
@@ -618,7 +640,11 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
         </aside>
 
         <main className="relative z-10 col-span-12 md:col-span-9">
-          <div ref={tableRef} className="relative rounded-[24px] border border-slate-300/60 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,.6),inset_0_-40px_80px_rgba(0,0,0,.08)]" style={{ width: TABLE_W, height: TABLE_H }}>
+          <div
+            ref={tableRef}
+            className="relative rounded-[24px] border border-slate-300/60 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,.6),inset_0_-40px_80px_rgba(0,0,0,.08)]"
+            style={{ width: TABLE_W, height: TABLE_H }}
+          >
             {/* Camadas da mesa em aço inox */}
             <div
               className="absolute inset-0"
@@ -637,17 +663,20 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
             />
             {/* brilho lateral */}
             <div className="pointer-events-none absolute inset-0">
-              <div className="absolute inset-0" style={{
-                background:
-                  "radial-gradient(1200px 380px at -10% 50%, rgba(255,255,255,.35), transparent 60%), radial-gradient(1200px 380px at 110% 50%, rgba(255,255,255,.35), transparent 60%)",
-              }} />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "radial-gradient(1200px 380px at -10% 50%, rgba(255,255,255,.35), transparent 60%), radial-gradient(1200px 380px at 110% 50%, rgba(255,255,255,.35), transparent 60%)",
+                }}
+              />
             </div>
             {/* rebordo metálico */}
             <div className="absolute inset-0 rounded-[24px] ring-1 ring-black/10" />
             <div className="absolute inset-0 rounded-[24px] shadow-[inset_0_12px_20px_rgba(0,0,0,.12),inset_0_-8px_12px_rgba(0,0,0,.08)]" />
 
             {/* parafusos decorativos */}
-            {[[14,14],[TABLE_W-28,14],[14,TABLE_H-28],[TABLE_W-28,TABLE_H-28]].map(([lx,ly],i)=> (
+            {[[14, 14], [TABLE_W - 28, 14], [14, TABLE_H - 28], [TABLE_W - 28, TABLE_H - 28]].map(([lx, ly], i) => (
               <span
                 key={i}
                 className="absolute w-4 h-4 rounded-full shadow-sm"
@@ -698,10 +727,16 @@ function PlacedMini({ item, gridPos, zone, onStartDrag }: { item: Instrument; gr
   const y = zone.y + 28 + gridPos.row * (PLACED_SIZE + GRID_GAP);
 
   useEffect(() => {
-    const el = ref.current; if (!el) return;
-    const onDown = (e: PointerEvent) => { e.preventDefault(); onStartDrag(item, e); };
+    const el = ref.current;
+    if (!el) return;
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault();
+      onStartDrag(item, e);
+    };
     el.addEventListener("pointerdown", onDown);
-    return () => { el.removeEventListener("pointerdown", onDown); };
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+    };
   }, [item, onStartDrag]);
 
   return (
@@ -714,6 +749,7 @@ function PlacedMini({ item, gridPos, zone, onStartDrag }: { item: Instrument; gr
     </div>
   );
 }
+
 
 
 
