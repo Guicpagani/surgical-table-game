@@ -60,7 +60,8 @@ const PADDING = 16;
 const PLACED_SIZE = 64;
 const GRID_COLS = 4;
 const GRID_GAP = 8;
-const DRAG_PREVIEW_SIZE = 300;
+// tamanho base do preview; controlaremos com width/height explícitos
+const DRAG_PREVIEW_SIZE = 220;
 
 /* ===== Ícones fallback ===== */
 const IconScalpel: React.FC<React.SVGProps<SVGSVGElement>> = (p) => (
@@ -167,8 +168,10 @@ const ZONES: Zone[] = [
   { id: "z6", label: "Diérese", category: "dierese", x: PADDING + 2 * (CELL_W + PADDING), y: PADDING + CELL_H + PADDING, w: CELL_W, h: CELL_H },
 ];
 
-/* ===== Mapeamento de arquivos ===== */
+/* ===== Mapeamento de arquivos =====
+   (chave = slug gerado pelo label; valor = NOME EXATO do arquivo na pasta) */
 const FILE_BASE_MAP: Record<string, string> = {
+  // já existentes
   "cabo-de-bisturi-n-3": "bisturi-3",
   "cabo-de-bisturi-n-4": "bisturi-4",
   "cuba-redonda": "Cuba redonda",
@@ -176,8 +179,8 @@ const FILE_BASE_MAP: Record<string, string> = {
   "fio-de-sutura-nylon": "Fio de sutura",
   "lamina-10": "Lamina 10",
   "lamina-20": "Lamina 20",
-  "tesoura-metzenbaum-curva": "Tesoura Metzenbaum curva",
-  "tesoura-metzenbaum-reta": "Tesoura Metzenbaum reta",
+  "tesoura-metzenbaum-curva": "Tesoura Metzembaum curva",
+  "tesoura-metzenbaum-reta": "Tesoura Metzembaum reta",
   "tesoura-mayo-curva": "Tesoura Mayo curva",
   "tesoura-mayo-reta": "Tesoura Mayo reta",
   "pinca-kelly-curva-1": "Pinça Kelly Curva (1)",
@@ -186,6 +189,21 @@ const FILE_BASE_MAP: Record<string, string> = {
   "pinca-dente-de-rato": "Pinça-dente-de-rato",
   "pinca-mixter-1": "Pinça Mixter (1)",
   "pinca-mixter-2": "Pinça Mixter (2)",
+
+  // novos (batem com sua matriz de arquivos)
+  // Kocher (atenção ao "k" minúsculo nos arquivos)
+  "pinca-kocher-reta": "Pinça kocher reta",
+  "pinca-kocher-curva-1": "Pinça kocher curva (1)",
+  "pinca-kocher-curva-2": "Pinça kocher curva (2)",
+
+  // Backhous (arquivos estão com "b" minúsculo)
+  "pinca-backhous-1": "Pinça backhous (1)",
+  "pinca-backhous-2": "Pinça backhous (2)",
+  "pinca-backhous-3": "Pinça backhous (3)",
+
+  // Farabeuf (acentos e minúsculas exatamente como na pasta)
+  "afastador-farabeuf-medio-1": "Afastador farabeuf médio(1)",
+  "afastador-farabeuf-pequeno-2": "Afastador farabeuf pequeno(2)",
 };
 
 /* ===== Lista corrigida ===== */
@@ -245,17 +263,43 @@ const INSTRUMENTS: Instrument[] = RAW_LIST.map(([labelPt, catPt]) => {
 });
 
 /* ===== Componentes utilitários ===== */
-function InstrumentImage({ base, alt, className }: { base: string; alt: string; className?: string }) {
+function InstrumentImage({
+  base,
+  alt,
+  className,
+  width,
+  height,
+}: {
+  base: string;
+  alt: string;
+  className?: string;
+  width?: number;
+  height?: number;
+}) {
   const sources = [`/instruments/${base}.png`, `/instruments/${base}.jpg`, `/instruments/${base}.jpeg`, `/instruments/${base}.webp`];
   const [idx, setIdx] = useState(0);
   const [failed, setFailed] = useState(false);
-  if (failed) return <div className={`flex items-center justify-center ${className || ""}`}><span className="text-slate-500 text-xs">sem imagem</span></div>;
+  if (failed)
+    return (
+      <div className={`flex items-center justify-center ${className || ""}`} style={{ width, height }}>
+        <span className="text-slate-500 text-xs">sem imagem</span>
+      </div>
+    );
   return (
     <img
       src={sources[idx]}
       alt={alt}
       className={className}
-      onError={() => { if (idx < sources.length - 1) setIdx(idx + 1); else setFailed(true); }}
+      style={{
+        width: width ?? "auto",
+        height: height ?? "auto",
+        maxWidth: width ? `${width}px` : undefined,
+        maxHeight: height ? `${height}px` : undefined,
+      }}
+      onError={() => {
+        if (idx < sources.length - 1) setIdx(idx + 1);
+        else setFailed(true);
+      }}
     />
   );
 }
@@ -266,12 +310,9 @@ function PreviewOverlay({ item, x, y }: { item: Instrument | null; x: number; y:
   const iconSize = Math.round(size * 0.6);
   return (
     <div className="absolute pointer-events-none z-[220]" style={{ left: x + 16, top: y + 16 }}>
-      <div className="rounded-xl border bg-white shadow-2xl p-3 flex items-center gap-3 scale-105">
+      <div className="rounded-xl border bg-white shadow-2xl p-3 flex items-center gap-3">
         {item.imageBase ? (
-          <>
-            <InstrumentImage base={item.imageBase} alt={item.label} className="object-contain" />
-            <div style={{ width: size, height: size }} className="absolute opacity-0" />
-          </>
+          <InstrumentImage base={item.imageBase} alt={item.label} className="object-contain" width={size} height={size} />
         ) : (
           <div className="flex items-center justify-center text-slate-700" style={{ width: size, height: size }}>
             <item.renderIcon width={iconSize} height={iconSize} />
@@ -303,7 +344,8 @@ function EvaluatorPanel({ evaluator, imageSrc }: { evaluator: Evaluator; imageSr
     setIdx(0);
     const t = setInterval(() => setIdx((i) => (i + 1) % messages.length), DISPLAY_MS);
     return () => clearInterval(t);
-  }, [evaluator, messages.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evaluator]);
 
   const png = imageSrc || `/evaluators/${evaluator}.png`;
   const jpg = png.replace(".png", ".jpg");
@@ -319,8 +361,8 @@ function EvaluatorPanel({ evaluator, imageSrc }: { evaluator: Evaluator; imageSr
           className="w-full h-full object-cover"
           onError={(e) => {
             const img = e.currentTarget as HTMLImageElement;
-            if (!img.dataset.fallback) {
-              img.dataset.fallback = "1";
+            if (!(img as any).dataset.fallback) {
+              (img as any).dataset.fallback = "1";
               img.src = jpg;
             }
           }}
@@ -596,9 +638,7 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
         const zone = ZONES.find((z) => z.id === (zid || "")) || null;
         const correct = !!zone && zone.category === it.category;
         const corrected = !!everWrong[it.id] && correct;
-        const wrongTried = wrongZonesByItem[it.id]
-          ? Array.from(wrongZonesByItem[it.id]).map((zid2) => ZONES.find((z) => z.id === zid2)?.label || zid2)
-          : [];
+        const wrongTried = wrongZonesByItem[it.id] ? Array.from(wrongZonesByItem[it.id]).map((zid2) => ZONES.find((z) => z.id === zid2)?.label || zid2) : [];
         return { item: it.label, finalZone: zone ? zone.label : null, correct, corrected, wrongZonesTried: wrongTried };
       });
       const total = INSTRUMENTS.length;
@@ -755,6 +795,7 @@ function PlacedMini({ item, gridPos, zone, onStartDrag }: { item: Instrument; gr
     </div>
   );
 }
+
 
 
 
