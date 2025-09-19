@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * Mesa Cirúrgica — Protótipo (versão simplificada mantendo o conteúdo/comportamento)
+ * Mesa Cirúrgica — Protótipo (com correções de imagens e preview)
  */
 
 type Evaluator = "otto" | "rafael";
@@ -20,7 +20,7 @@ type Instrument = {
   label: string;
   category: CategoryId;
   renderIcon: React.FC<React.SVGProps<SVGSVGElement>>;
-  imageBase?: string;
+  imageBase?: string; // nome exato do arquivo SEM extensão (case/acentos iguais ao arquivo)
 };
 
 type Zone = {
@@ -33,7 +33,6 @@ type Zone = {
   h: number;
 };
 
-/* ===== Tipos do relatório ===== */
 type ItemReport = {
   item: string;
   finalZone: string | null;
@@ -60,8 +59,6 @@ const PADDING = 16;
 const PLACED_SIZE = 64;
 const GRID_COLS = 4;
 const GRID_GAP = 8;
-// tamanho base do preview; controlaremos com width/height explícitos
-const DRAG_PREVIEW_SIZE = 220;
 
 /* ===== Ícones fallback ===== */
 const IconScalpel: React.FC<React.SVGProps<SVGSVGElement>> = (p) => (
@@ -168,10 +165,10 @@ const ZONES: Zone[] = [
   { id: "z6", label: "Diérese", category: "dierese", x: PADDING + 2 * (CELL_W + PADDING), y: PADDING + CELL_H + PADDING, w: CELL_W, h: CELL_H },
 ];
 
-/* ===== Mapeamento de arquivos =====
-   (chave = slug gerado pelo label; valor = NOME EXATO do arquivo na pasta) */
+/* ===== Mapeamento de arquivos (case/acentos EXATOS) =====
+   IMPORTANTÍSSIMO: os valores abaixo devem bater exatamente com o nome do arquivo em /public/instruments (sem extensão). */
 const FILE_BASE_MAP: Record<string, string> = {
-  // já existentes
+  // Já existentes
   "cabo-de-bisturi-n-3": "bisturi-3",
   "cabo-de-bisturi-n-4": "bisturi-4",
   "cuba-redonda": "Cuba redonda",
@@ -179,10 +176,10 @@ const FILE_BASE_MAP: Record<string, string> = {
   "fio-de-sutura-nylon": "Fio de sutura",
   "lamina-10": "Lamina 10",
   "lamina-20": "Lamina 20",
-  "tesoura-metzenbaum-curva": "Tesoura Metzembaum curva",
-  "tesoura-metzenbaum-reta": "Tesoura Metzembaum reta",
   "tesoura-mayo-curva": "Tesoura Mayo curva",
   "tesoura-mayo-reta": "Tesoura Mayo reta",
+  "tesoura-metzembaum-curva": "Tesoura Metzembaum curva",
+  "tesoura-metzembaum-reta": "Tesoura Metzembaum reta",
   "pinca-kelly-curva-1": "Pinça Kelly Curva (1)",
   "pinca-kelly-curva-2": "Pinça Kelly Curva (2)",
   "pinca-kelly-curva-3": "Pinça kelly Curva (3)",
@@ -190,18 +187,13 @@ const FILE_BASE_MAP: Record<string, string> = {
   "pinca-mixter-1": "Pinça Mixter (1)",
   "pinca-mixter-2": "Pinça Mixter (2)",
 
-  // novos (batem com sua matriz de arquivos)
-  // Kocher (atenção ao "k" minúsculo nos arquivos)
-  "pinca-kocher-reta": "Pinça kocher reta",
-  "pinca-kocher-curva-1": "Pinça kocher curva (1)",
-  "pinca-kocher-curva-2": "Pinça kocher curva (2)",
-
-  // Backhous (arquivos estão com "b" minúsculo)
+  // Novos — para casar com sua matriz:
   "pinca-backhous-1": "Pinça backhous (1)",
   "pinca-backhous-2": "Pinça backhous (2)",
   "pinca-backhous-3": "Pinça backhous (3)",
-
-  // Farabeuf (acentos e minúsculas exatamente como na pasta)
+  "pinca-kocher-reta": "Pinça kocher reta",
+  "pinca-kocher-curva-1": "Pinça kocher curva (1)",
+  "pinca-kocher-curva-2": "Pinça kocher curva (2)",
   "afastador-farabeuf-medio-1": "Afastador farabeuf médio(1)",
   "afastador-farabeuf-pequeno-2": "Afastador farabeuf pequeno(2)",
 };
@@ -258,44 +250,30 @@ const RAW_LIST: Array<[string, string]> = [
 const INSTRUMENTS: Instrument[] = RAW_LIST.map(([labelPt, catPt]) => {
   const category = normalizeCategory(catPt);
   const id = slugifyName(labelPt);
-  const base = FILE_BASE_MAP[id] || labelPt;
+  const base = FILE_BASE_MAP[id] || labelPt; // fallback: usa o label exato (case/acentos)
   return { id, label: labelPt, category, renderIcon: iconFor(category), imageBase: base };
 });
 
-/* ===== Componentes utilitários ===== */
-function InstrumentImage({
-  base,
-  alt,
-  className,
-  width,
-  height,
-}: {
-  base: string;
-  alt: string;
-  className?: string;
-  width?: number;
-  height?: number;
-}) {
-  const sources = [`/instruments/${base}.png`, `/instruments/${base}.jpg`, `/instruments/${base}.jpeg`, `/instruments/${base}.webp`];
+/* ===== Imagem com fallback e URL escapada ===== */
+function InstrumentImage({ base, alt, className, style }: { base: string; alt: string; className?: string; style?: React.CSSProperties }) {
+  // Escapa espaços, acentos e parênteses
+  const b = encodeURI(base);
+  const sources = [`/instruments/${b}.png`, `/instruments/${b}.jpg`, `/instruments/${b}.jpeg`, `/instruments/${b}.webp`];
   const [idx, setIdx] = useState(0);
   const [failed, setFailed] = useState(false);
-  if (failed)
+  if (failed) {
     return (
-      <div className={`flex items-center justify-center ${className || ""}`} style={{ width, height }}>
+      <div className={`flex items-center justify-center ${className || ""}`} style={style}>
         <span className="text-slate-500 text-xs">sem imagem</span>
       </div>
     );
+  }
   return (
     <img
       src={sources[idx]}
       alt={alt}
       className={className}
-      style={{
-        width: width ?? "auto",
-        height: height ?? "auto",
-        maxWidth: width ? `${width}px` : undefined,
-        maxHeight: height ? `${height}px` : undefined,
-      }}
+      style={style}
       onError={() => {
         if (idx < sources.length - 1) setIdx(idx + 1);
         else setFailed(true);
@@ -304,15 +282,23 @@ function InstrumentImage({
   );
 }
 
+/* ===== Preview grande (tamanho controlado/responsivo) ===== */
 function PreviewOverlay({ item, x, y }: { item: Instrument | null; x: number; y: number }) {
   if (!item) return null;
-  const size = DRAG_PREVIEW_SIZE;
+  // Responsivo: mínimo 160, máximo 260, ~22% da mesa
+  const size = Math.min(260, Math.max(160, Math.round(TABLE_W * 0.22)));
   const iconSize = Math.round(size * 0.6);
+
   return (
     <div className="absolute pointer-events-none z-[220]" style={{ left: x + 16, top: y + 16 }}>
       <div className="rounded-xl border bg-white shadow-2xl p-3 flex items-center gap-3">
         {item.imageBase ? (
-          <InstrumentImage base={item.imageBase} alt={item.label} className="object-contain" width={size} height={size} />
+          <InstrumentImage
+            base={item.imageBase}
+            alt={item.label}
+            className="object-contain"
+            style={{ width: size, height: size }}
+          />
         ) : (
           <div className="flex items-center justify-center text-slate-700" style={{ width: size, height: size }}>
             <item.renderIcon width={iconSize} height={iconSize} />
@@ -324,6 +310,7 @@ function PreviewOverlay({ item, x, y }: { item: Instrument | null; x: number; y:
   );
 }
 
+/* ===== Item da lista ===== */
 function ListItem({ item, isPlaced, onStartDrag }: { item: Instrument; isPlaced: boolean; onStartDrag: (item: Instrument, e: React.PointerEvent<HTMLButtonElement>) => void }) {
   return (
     <button onPointerDown={(e) => onStartDrag(item, e)} className={`w-full text-left px-3 py-2 rounded-xl border flex items-center gap-2 mb-2 bg-white ${isPlaced ? "border-emerald-300" : "border-gray-300 hover:shadow-sm"}`} title={isPlaced ? "Este instrumento está na mesa" : "Arraste para a mesa"}>
@@ -336,6 +323,7 @@ function ListItem({ item, isPlaced, onStartDrag }: { item: Instrument; isPlaced:
   );
 }
 
+/* ===== Painel do avaliador ===== */
 function EvaluatorPanel({ evaluator, imageSrc }: { evaluator: Evaluator; imageSrc?: string }) {
   const messages = THOUGHTS[evaluator];
   const [idx, setIdx] = useState(0);
@@ -344,8 +332,7 @@ function EvaluatorPanel({ evaluator, imageSrc }: { evaluator: Evaluator; imageSr
     setIdx(0);
     const t = setInterval(() => setIdx((i) => (i + 1) % messages.length), DISPLAY_MS);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluator]);
+  }, [evaluator, messages.length]);
 
   const png = imageSrc || `/evaluators/${evaluator}.png`;
   const jpg = png.replace(".png", ".jpg");
@@ -487,7 +474,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
 
   const placedSet = useMemo(() => new Set(Object.values(placements).flat()), [placements]);
 
-  /* ===== Helpers ===== */
   const findZoneByItem = (itemId: string) => Object.keys(placements).find((zid) => placements[zid].includes(itemId)) || null;
   const getClientPoint = (clientX: number, clientY: number) => {
     const rect = tableRef.current?.getBoundingClientRect();
@@ -513,7 +499,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
     setPreviewPos({ x: clientX - rect.left, y: clientY - rect.top });
   };
 
-  /* ===== Drag genérico ===== */
   const startDrag = (item: Instrument, clientX: number, clientY: number, source: "list" | "placed") => {
     if (showTutorial) return;
     setPreviewItem(item);
@@ -604,7 +589,6 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
     });
   };
 
-  /* ===== UI ===== */
   const handleStartDragFromList = (item: Instrument, e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     startDrag(item, e.clientX, e.clientY, "list");
@@ -638,7 +622,9 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
         const zone = ZONES.find((z) => z.id === (zid || "")) || null;
         const correct = !!zone && zone.category === it.category;
         const corrected = !!everWrong[it.id] && correct;
-        const wrongTried = wrongZonesByItem[it.id] ? Array.from(wrongZonesByItem[it.id]).map((zid2) => ZONES.find((z) => z.id === zid2)?.label || zid2) : [];
+        const wrongTried = wrongZonesByItem[it.id]
+          ? Array.from(wrongZonesByItem[it.id]).map((zid2) => ZONES.find((z) => z.id === zid2)?.label || zid2)
+          : [];
         return { item: it.label, finalZone: zone ? zone.label : null, correct, corrected, wrongZonesTried: wrongTried };
       });
       const total = INSTRUMENTS.length;
@@ -795,6 +781,7 @@ function PlacedMini({ item, gridPos, zone, onStartDrag }: { item: Instrument; gr
     </div>
   );
 }
+
 
 
 
