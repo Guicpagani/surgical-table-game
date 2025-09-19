@@ -1,9 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * Mesa Cirúrgica — Protótipo (com correções de imagens e preview)
+ * Mesa Cirúrgica — Protótipo (com correções de imagens, preview e sem `any`)
  */
 
 type Evaluator = "otto" | "rafael";
@@ -165,10 +166,8 @@ const ZONES: Zone[] = [
   { id: "z6", label: "Diérese", category: "dierese", x: PADDING + 2 * (CELL_W + PADDING), y: PADDING + CELL_H + PADDING, w: CELL_W, h: CELL_H },
 ];
 
-/* ===== Mapeamento de arquivos (case/acentos EXATOS) =====
-   IMPORTANTÍSSIMO: os valores abaixo devem bater exatamente com o nome do arquivo em /public/instruments (sem extensão). */
+/* ===== Mapeamento de arquivos (case/acentos EXATOS) ===== */
 const FILE_BASE_MAP: Record<string, string> = {
-  // Já existentes
   "cabo-de-bisturi-n-3": "bisturi-3",
   "cabo-de-bisturi-n-4": "bisturi-4",
   "cuba-redonda": "Cuba redonda",
@@ -187,7 +186,7 @@ const FILE_BASE_MAP: Record<string, string> = {
   "pinca-mixter-1": "Pinça Mixter (1)",
   "pinca-mixter-2": "Pinça Mixter (2)",
 
-  // Novos — para casar com sua matriz:
+  // novos casando com sua pasta
   "pinca-backhous-1": "Pinça backhous (1)",
   "pinca-backhous-2": "Pinça backhous (2)",
   "pinca-backhous-3": "Pinça backhous (3)",
@@ -255,10 +254,24 @@ const INSTRUMENTS: Instrument[] = RAW_LIST.map(([labelPt, catPt]) => {
 });
 
 /* ===== Imagem com fallback e URL escapada ===== */
-function InstrumentImage({ base, alt, className, style }: { base: string; alt: string; className?: string; style?: React.CSSProperties }) {
-  // Escapa espaços, acentos e parênteses
+function InstrumentImage({
+  base,
+  alt,
+  className,
+  style,
+}: {
+  base: string;
+  alt: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
   const b = encodeURI(base);
-  const sources = [`/instruments/${b}.png`, `/instruments/${b}.jpg`, `/instruments/${b}.jpeg`, `/instruments/${b}.webp`];
+  const sources = [
+    `/instruments/${b}.png`,
+    `/instruments/${b}.jpg`,
+    `/instruments/${b}.jpeg`,
+    `/instruments/${b}.webp`,
+  ];
   const [idx, setIdx] = useState(0);
   const [failed, setFailed] = useState(false);
   if (failed) {
@@ -285,7 +298,6 @@ function InstrumentImage({ base, alt, className, style }: { base: string; alt: s
 /* ===== Preview grande (tamanho controlado/responsivo) ===== */
 function PreviewOverlay({ item, x, y }: { item: Instrument | null; x: number; y: number }) {
   if (!item) return null;
-  // Responsivo: mínimo 160, máximo 260, ~22% da mesa
   const size = Math.min(260, Math.max(160, Math.round(TABLE_W * 0.22)));
   const iconSize = Math.round(size * 0.6);
 
@@ -293,12 +305,7 @@ function PreviewOverlay({ item, x, y }: { item: Instrument | null; x: number; y:
     <div className="absolute pointer-events-none z-[220]" style={{ left: x + 16, top: y + 16 }}>
       <div className="rounded-xl border bg-white shadow-2xl p-3 flex items-center gap-3">
         {item.imageBase ? (
-          <InstrumentImage
-            base={item.imageBase}
-            alt={item.label}
-            className="object-contain"
-            style={{ width: size, height: size }}
-          />
+          <InstrumentImage base={item.imageBase} alt={item.label} className="object-contain" style={{ width: size, height: size }} />
         ) : (
           <div className="flex items-center justify-center text-slate-700" style={{ width: size, height: size }}>
             <item.renderIcon width={iconSize} height={iconSize} />
@@ -348,8 +355,8 @@ function EvaluatorPanel({ evaluator, imageSrc }: { evaluator: Evaluator; imageSr
           className="w-full h-full object-cover"
           onError={(e) => {
             const img = e.currentTarget as HTMLImageElement;
-            if (!(img as any).dataset.fallback) {
-              (img as any).dataset.fallback = "1";
+            if (!img.dataset.fallback) {
+              img.dataset.fallback = "1";
               img.src = jpg;
             }
           }}
