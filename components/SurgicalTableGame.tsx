@@ -154,7 +154,7 @@ const DISPLAY_MS = 3800;
 
 /* ===== Zonas ===== */
 const GRID_W = TABLE_W - PADDING * 2;
-the GRID_H = TABLE_H - PADDING * 3 - 8;
+const GRID_H = TABLE_H - PADDING * 3 - 8;
 const CELL_W = (GRID_W - PADDING * 2) / 3;
 const CELL_H = (GRID_H - PADDING) / 2;
 
