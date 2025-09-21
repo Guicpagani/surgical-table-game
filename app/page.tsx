@@ -30,10 +30,9 @@ function EvaluatorCard({
           alt={`${name} (Avaliador)`}
           className="w-full h-full object-cover"
           onError={(e) => {
-            // fallback para .jpg se .png não existir
-            if (!e.currentTarget.dataset.fallback) {
-              e.currentTarget.dataset.fallback = "1";
-              e.currentTarget.src = jpg;
+            if (!(e.currentTarget as HTMLImageElement).dataset.fallback) {
+              (e.currentTarget as HTMLImageElement).dataset.fallback = "1";
+              (e.currentTarget as HTMLImageElement).src = jpg;
             }
           }}
         />
@@ -105,4 +104,5 @@ export default function SelectEvaluatorPage() {
     </main>
   );
 }
+
 

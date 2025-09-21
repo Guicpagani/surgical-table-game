@@ -23,7 +23,7 @@ function GamePageInner() {
     | "otto"
     | "rafael";
 
-  const SCALE = 0.9; // 90%
+  const SCALE = 0.8; // 80%
 
   return (
     <div className="min-h-screen w-screen overflow-auto bg-slate-50">
