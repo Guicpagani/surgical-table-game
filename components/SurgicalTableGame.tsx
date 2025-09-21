@@ -464,7 +464,7 @@ function ZoneBox({ z, error }: { z: Zone; error: boolean }) {
 }
 
 /* ===== Principal ===== */
-export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSrc }: { evaluator?: Evaluator; evaluatorImageSrc?: string }) {
+export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSrc, scale=1 }: { evaluator?: Evaluator; evaluatorImageSrc?: string; scale?: number; }) {
   const tableRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const checkBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -487,7 +487,7 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
   const findZoneByItem = (itemId: string) => Object.keys(placements).find((zid) => placements[zid].includes(itemId)) || null;
   const getClientPoint = (clientX: number, clientY: number) => {
     const rect = tableRef.current?.getBoundingClientRect();
-    return rect ? { x: clientX - rect.left, y: clientY - rect.top } : null;
+    return rect ? { x: (clientX - rect.left)/scale, y: (clientY - rect.top)/scale } : null;
   };
   const getZoneAtClient = (clientX: number, clientY: number) => {
     const p = getClientPoint(clientX, clientY);
@@ -506,7 +506,7 @@ export default function SurgicalTableGame({ evaluator = "otto", evaluatorImageSr
   const updatePreviewWithClient = (clientX: number, clientY: number) => {
     const rect = tableRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setPreviewPos({ x: clientX - rect.left, y: clientY - rect.top });
+    setPreviewPos({ x: (clientX - rect.left)/scale, y: (clientY - rect.top)/scale });
   };
 
   const startDrag = (item: Instrument, clientX: number, clientY: number, source: "list" | "placed") => {
