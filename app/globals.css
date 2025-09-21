@@ -24,3 +24,29 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ===== Escala global ~80% em desktop (sem alterar zoom do navegador) ===== */
+/* Aplica a partir de 1024px pra não afetar mobile/tablet */
+@media (min-width: 1024px) {
+  /* Navegadores Chromium/Edge: usam zoom (melhor performance) */
+  @supports (zoom: 1) {
+    html,
+    body {
+      zoom: 0.8; /* 80% */
+    }
+  }
+
+  /* Firefox (não suporta zoom): usa transform + compensação de largura */
+  @supports not (zoom: 1) {
+    html,
+    body {
+      transform: scale(0.8);
+      transform-origin: top center;
+      /* Compensa a escala pra evitar corte horizontal */
+      width: 125%; /* 1 / 0.8 = 1.25 */
+      /* Evita scroll horizontal por causa da compensação */
+      overflow-x: hidden;
+    }
+  }
+}
+
